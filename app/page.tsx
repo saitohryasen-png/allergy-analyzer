@@ -71,11 +71,14 @@ export default function AllergyAnalyzer() {
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d")?.drawImage(video, 0, 0);
+    // 長辺を1024pxに制限してAPIのボディサイズ超過を防ぐ
+    const MAX = 1024;
+    const scale = Math.min(1, MAX / Math.max(video.videoWidth, video.videoHeight));
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
     const base64 = dataUrl.split(",")[1];
 
     stopCamera();
@@ -149,13 +152,24 @@ export default function AllergyAnalyzer() {
       });
 
       const data = await response.json();
-      const text = data.content?.find((b: { type: string; text?: string }) => b.type === "text")?.text || "";
+
+      if (!response.ok) {
+        setError(`APIエラー: ${data?.error ?? response.status}`);
+        return;
+      }
+
+      const text = data.content?.find((b: { type: string; text?: string }) => b.type === "text")?.text ?? "";
+      if (!text) {
+        setError("AIからの応答が空でした。もう一度お試しください。");
+        return;
+      }
+
       const clean = text.replace(/```json|```/g, "").trim();
       const parsed = JSON.parse(clean);
       setResult(parsed);
       setScreen("result");
-    } catch {
-      setError("分析中にエラーが発生しました。もう一度お試しください。");
+    } catch (err) {
+      setError(`エラー: ${err instanceof Error ? err.message : "不明なエラーが発生しました"}`);
     } finally {
       setLoading(false);
     }
