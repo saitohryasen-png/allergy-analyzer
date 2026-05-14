@@ -40,6 +40,7 @@ export default function AllergyAnalyzer() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -87,6 +88,41 @@ export default function AllergyAnalyzer() {
     setResult(null);
     setError(null);
     setScreen("preview");
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // ファイルサイズをチェック（5MB制限）
+    if (file.size > 5 * 1024 * 1024) {
+      setError("ファイルサイズは5MB以下にしてください");
+      return;
+    }
+
+    // 画像ファイルのみ許可
+    if (!file.type.startsWith("image/")) {
+      setError("画像ファイルをアップロードしてください");
+      return;
+    }
+
+    try {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        const base64 = dataUrl.split(",")[1];
+        const mediaType = file.type;
+
+        setImage(dataUrl);
+        setImageBase64({ data: base64, mediaType });
+        setResult(null);
+        setError(null);
+        setScreen("preview");
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      setError(`ファイル読み込みエラー: ${err instanceof Error ? err.message : "不明なエラー"}`);
+    }
   };
 
   const retake = () => {
@@ -222,6 +258,14 @@ export default function AllergyAnalyzer() {
             <p style={{ color: "#94A3B8", fontSize: 16, marginBottom: 32 }}>
               食品や料理をカメラで撮影すると<br />含まれるアレルゲンを検出します
             </p>
+
+            {error && (
+              <div style={{
+                background: "#FEE2E2", borderRadius: 12, padding: 12,
+                color: "#DC2626", fontSize: 14, textAlign: "center", marginBottom: 16,
+              }}>⚠️ {error}</div>
+            )}
+
             <button
               className="btn-primary"
               onClick={startCamera}
@@ -231,10 +275,31 @@ export default function AllergyAnalyzer() {
                 border: "none", borderRadius: 14,
                 color: "#fff", fontSize: 17, fontWeight: 700,
                 cursor: "pointer",
+                marginBottom: 12,
               }}
             >
               📷 カメラを起動する
             </button>
+            <button
+              className="btn-primary"
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                width: "100%", padding: "16px 24px",
+                background: "transparent", border: "1px solid #334155",
+                borderRadius: 14,
+                color: "#94A3B8", fontSize: 17, fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              📁 写真をアップロード
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileUpload}
+              style={{ display: "none" }}
+            />
           </div>
         )}
 
